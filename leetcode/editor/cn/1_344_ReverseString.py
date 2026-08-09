@@ -50,7 +50,14 @@ class Solution(object):
         :type s: List[str]
         :rtype: None Do not return anything, modify s in-place instead.
         """
-        
+        left = 0
+        right = len(s) - 1
+        while left < right :
+            temp = s[left]
+            s[left] = s[right]
+            s[right] = temp
+            left +=1
+            right -=1
 # leetcode submit region end(Prohibit modification and deletion)
 
 # leetcode submit region end(Prohibit modify tags)
@@ -58,5 +65,8 @@ class Solution(object):
 if __name__ == '__main__':
     # 本地调试测试用例 (可以自己修改参数进行测试)
     solution = Solution()
+    s= ['1','2','8']
     # print(solution.yourMethodName(arg1, arg2))
+    solution.reverseString(s)
+    print(s)
     pass
