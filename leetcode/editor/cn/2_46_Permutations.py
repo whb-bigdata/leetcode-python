@@ -51,12 +51,27 @@
 
 # leetcode submit region begin(Prohibit modify tags)
 # leetcode submit region begin(Prohibit modification and deletion)
-class Solution(object):
-    def permute(self, nums):
-        """
-        :type nums: List[int]
-        :rtype: List[List[int]]
-        """
+class Solution:
+    # 按照 Java 习惯写成同级方法（注意 Python 要带 self）
+    def permute(self, nums: list[int]) -> list[list[int]]:
+        res = []
+        self._backtrack(nums, [], [False] * len(nums), res)
+        return res
+
+    # 类似于 Java 的 private 辅助方法（Python 约定下划线开头表示私有）
+    def _backtrack(self, nums, path, used, res):
+        if len(path) == len(nums):
+            res.append(path.copy())
+            return
+
+        for i in range(len(nums)):
+            if used[i]:
+                continue
+            used[i] = True
+            path.append(nums[i])
+            self._backtrack(nums, path, used, res)
+            path.pop()
+            used[i] = False
         
 # leetcode submit region end(Prohibit modification and deletion)
 
@@ -65,5 +80,9 @@ class Solution(object):
 if __name__ == '__main__':
     # 本地调试测试用例 (可以自己修改参数进行测试)
     solution = Solution()
-    # print(solution.yourMethodName(arg1, arg2))
+    arg1 = [1, 2, 3]
+    print(solution.permute(arg1))
     pass
+
+
+
