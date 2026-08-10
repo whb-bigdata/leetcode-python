@@ -42,7 +42,13 @@
 #  nums 的每个元素都将在 [-9999, 9999]之间。 
 #  
 # 
-#  Related Topics 数组 二分查找 👍 1900 👎 0
+#  Related Topics数组 | 二分查找 
+# 
+#  👍 1901, 👎 0bug 反馈 | 使用指南 | 更多插件 
+# 
+# 
+# 
+# 
 
 
 # leetcode submit region begin(Prohibit modify tags)
@@ -54,7 +60,20 @@ class Solution(object):
         :type target: int
         :rtype: int
         """
-        
+        left, right = 0, len(nums) - 1
+
+        while left <= right:
+            # 使用 left + (right - left) // 2 方式计算 mid，防止大数加法溢出
+            mid = left + (right - left) // 2
+
+            if nums[mid] == target:
+                return mid  # 找到目标值，返回对应的索引
+            elif nums[mid] < target:
+                left = mid + 1  # 目标值在右半部分，缩小左边界
+            else:
+                right = mid - 1  # 目标值在左半部分，缩小右边界
+
+        return -1  # 数组中未找到目标值，返回 -1
 # leetcode submit region end(Prohibit modification and deletion)
 
 # leetcode submit region end(Prohibit modify tags)
