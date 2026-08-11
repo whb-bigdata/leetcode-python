@@ -18,13 +18,37 @@ f = False
 print(t)
 print(f)
 
-
+'''
+使用方式：
+    标准库：arr = array.array('i', [1, 2, 3]) （'i' 代表整型）
+    科学计算第三方库：arr = np.array([1, 2, 3])
+时间复杂度与特性：
+    存取的复杂度与 list 类似，但它只能存储单一指定类型（例如全都是 4 字节整数）。
+    没有对象包装（装箱）的指针开销，100 万个整型数据在内存中只占约 4MB。
+适用场景：
+    需要处理几百万级以上的高密度纯数字数据，对内存使用极其敏感的场景。
+    图像处理、音视频字节流解析。
+    矩阵计算、向量化运算（直接使用 NumPy，性能接近 C/C++）。
+'''
 #   array Java 数组，无装箱开销，内存极紧凑，类型统一，高密度的纯数值计算、字节流、大矩阵运算
 # 2. Python 原生的 array（必须 import array）
 import array
 n_array = array.array('i', [1, 2, 3, 4, 5])  # 'i' 代表强类型整型
 print(type(n_array))  # 输出: <class 'array.array'>
 
+
+'''
+使用方式：nums = [1, 2, 3]
+时间复杂度：
+    按索引查找 nums[i]：$O(1)$
+    尾部追加/弹出 append() / pop()：$O(1)$
+    头部或中间插入/删除 insert(0, x) / pop(0)：$O(N)$（因为要平移内存）
+适用场景：
+    任何需要保存一串数据的常规场景（默认拿来就用）。
+    实现 栈（Stack）：用 append() 压栈，pop() 出栈，性能都是 $O(1)$。
+    需要根据下标快速查找元素的场景。
+
+'''
 
 #   list  Java ArrayList<Object>，动态指针数组，按索引随机访问极快 ($O(1)$)，默认首选、通用列表、栈（Stack）、算法题中 90% 的场景
 nums = [1, 2, 3]
@@ -42,6 +66,18 @@ nums.pop(2)
 print(nums)
 n = [1, 2, 3, 4, 5]
 print(type(n))
+
+'''
+使用方式：dq = deque([1, 2, 3])
+时间复杂度：
+    头部/尾部插入与弹出 appendleft() / popleft() / append() / pop()：$O(1)$
+    按索引随机查找 dq[i]：$O(N)$（需要顺着链表节点挨个遍历）
+适用场景：
+    实现 队列（Queue） 或 双端队列。
+    图算法中的 BFS（广度优先搜索） 遍历。
+    滑动窗口问题（配合 deque(maxlen=K) 参数可以实现自动淘汰旧元素的固定长度窗口）。
+'''
+
 
 #deque Java LinkedList
 
