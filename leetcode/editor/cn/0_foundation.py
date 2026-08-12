@@ -17,6 +17,21 @@ t = True
 f = False
 print(t)
 print(f)
+#   元组
+# 声明一个元组（包含不同类型）,定义后不可变
+person = ("Alice", 25, "Software Engineer")
+
+# 访问元素
+name = person[0]  # "Alice"
+
+# 尝试修改会报错 (TypeError: 'tuple' object does not support item assignment)
+# person[1] = 26
+
+# 函数返回多个值的本质就是返回元组
+def get_user():
+    return "Bob", 30  # 实际上返回的是 ("Bob", 30)
+nameB = get_user()
+print(nameB,type(nameB))
 
 '''
 使用方式：
