@@ -24,7 +24,7 @@ def get_target_filepaths(work_dir="."):
     # 查找所有 pdf 文件（排除已经是合并结果的 *_T.pdf）
     search_pattern = os.path.join(work_dir, "*.pdf")
     pdf_files = [
-        f for f in glob.glob(search_pattern) if not f.endswith("_T.pdf")
+        f for f in glob.glob(search_pattern)
     ]
 
     if len(pdf_files) < 2:
