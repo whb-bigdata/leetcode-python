@@ -134,7 +134,5 @@ def main():
     # 3. 调用模块 3：合并成功后清理源文件
     if success:
         cleanup_files(file1, file2)
-
-
 if __name__ == "__main__":
     main()
