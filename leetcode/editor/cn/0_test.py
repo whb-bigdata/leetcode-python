@@ -26,3 +26,6 @@ if __name__ == '__main__':
     while curr.next is not None:
         print(curr.data)
         curr=curr.next
+    name = 'Fix'
+    print(f'output1 {name}')  # method1
+    print('output2 {0}'.format(name))  # method2
