@@ -89,6 +89,19 @@ class Solution(object):
         :type s: str
         :rtype: bool
         """
+        stack = []
+        for char in s:
+            if len(stack) ==0:
+                stack.append(char)
+            elif stack[-1] =='(' and char == ')':
+                stack.pop()
+            elif stack[-1] =='{' and char == '}':
+                stack.pop()
+            elif stack[-1] =='[' and char == ']':
+                stack.pop()
+            else:
+                stack.append(char)
+        return len(stack) == 0
         
 # leetcode submit region end(Prohibit modification and deletion)
 
@@ -97,5 +110,6 @@ class Solution(object):
 if __name__ == '__main__':
     # 本地调试测试用例 (可以自己修改参数进行测试)
     solution = Solution()
-    # print(solution.yourMethodName(arg1, arg2))
+    arg1 = "()"
+    print(solution.isValid(arg1))
     pass
