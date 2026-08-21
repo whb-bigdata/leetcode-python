@@ -34,7 +34,6 @@ class LinkedStack:
 
 
 def print_singly_list(head: Node) -> None:
-    """打印单链表"""
     curr = head
     elements = []
     while curr:
@@ -46,9 +45,9 @@ def print_singly_list(head: Node) -> None:
 class LinkedQueue:
 
     def __init__(self):
-        self._head: Node = None  # 指向队头（Front），负责 dequeue (出队)
-        self._tail: Node = None  # 指向队尾（Rear），负责 enqueue (入队)
-        self._size: int = 0  # 永久计步器
+        self._head: Node = None
+        self._tail: Node = None
+        self._size: int = 0
 
     def is_empty(self) -> bool:
         return self._head is None
@@ -198,7 +197,6 @@ class TwoStackQueue:
         if self.is_empty():
             raise Exception("Queue is empty!")
 
-        # 如果 out_stack 为空，将 in_stack 中的元素全部倒进 out_stack
         if self.out_stack.is_empty():
             while not self.in_stack.is_empty():
                 self.out_stack.push(self.in_stack.pop())
