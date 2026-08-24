@@ -9,7 +9,7 @@ class Node:
 name_pool = ["A", "B", "C", "D"]
 
 singly_names = name_pool
-
+print('')
 # 构建单链表
 singly_head = None
 singly_tail = None
