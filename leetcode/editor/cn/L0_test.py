@@ -1,3 +1,5 @@
+import random
+
 from xxlimited_35 import Null
 
 
@@ -29,3 +31,36 @@ if __name__ == '__main__':
     name = 'Fix'
     print(f'output1 {name}')  # method1
     print('output2 {0}'.format(name))  # method2
+
+
+class DoublyNode:
+    def __init__(self, data: int = 0, prev=None, next=None):
+        self.data = data
+        self.prev = prev
+        self.next = next
+
+
+if __name__ == '__main__':
+    doubly_values = [random.randint(1, 100) for _ in range(10)]
+    doubly_head = None
+    doubly_tail = None
+
+    for value in doubly_values:
+        new_node = DoublyNode(value, prev=doubly_tail)
+        if doubly_head is None:
+            doubly_head = new_node
+        else:
+            doubly_tail.next = new_node
+        doubly_tail = new_node
+
+    print('Doubly linked list (forward):')
+    curr = doubly_head
+    while curr is not None:
+        print(curr.data)
+        curr = curr.next
+
+    print('Doubly linked list (backward):')
+    curr = doubly_tail
+    while curr is not None:
+        print(curr.data)
+        curr = curr.prev
