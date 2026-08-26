@@ -53,7 +53,7 @@ print(type(n_array))  # 输出: <class 'array.array'>
 
 
 '''
-使用方式：nums = [1, 2, 3]
+使用方式：nums = [1, 2, 3],动态指针数组，数组列表
 时间复杂度：
     按索引查找 nums[i]：$O(1)$
     尾部追加/弹出 append() / pop()：$O(1)$
@@ -83,7 +83,7 @@ n = [1, 2, 3, 4, 5]
 print(type(n))
 
 '''
-使用方式：dq = deque([1, 2, 3])
+使用方式：dq = deque([1, 2, 3]),链表
 时间复杂度：
     头部/尾部插入与弹出 appendleft() / popleft() / append() / pop()：$O(1)$
     按索引随机查找 dq[i]：$O(N)$（需要顺着链表节点挨个遍历）
