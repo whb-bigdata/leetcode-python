@@ -5,7 +5,6 @@ garden = [
     ['🌱', '🐛', '🦋', '🌲']
 ]
 
-# TODO: define bird_emojis
 # ...
 
 bird_emojis = {
@@ -30,7 +29,6 @@ scarlet_emojis = {
     '💀': '💀'
 }
 
-# TODO: define gandalf_emojis
 # ...
 gandalf_emojis = {
     '💀': '🌱',
@@ -85,7 +83,6 @@ print()
 
 
 # print('Event 3 - Gandalf ✨')
-# TODO: complete Event 3
 # ...
 print('Event 3 - Gandalf ✨')
 gandalf_landing = input('Enter spell coordinates: ').split()
