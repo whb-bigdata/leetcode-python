@@ -11,7 +11,7 @@ logging.getLogger("pypdf").setLevel(logging.ERROR)
 # ==========================================
 # 模块 1：获取与处理文件名
 # ==========================================
-def get_target_filepaths(work_dir="."):
+def get_target_filepaths(work_dir="/Users/wang/Desktop/pdf/"):
     """获取当前目录下两个待合并的 PDF 文件名及自动生成的输出文件名。
 
     规则：

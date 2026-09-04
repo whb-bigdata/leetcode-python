@@ -142,6 +142,7 @@ my_map = {}
 # --- 2. 插入 / 修改 ---
 my_map["apple"] = "banana"
 my_map["pear"] = "orange"
+my_map["banana"] = "orange"
 
 # --- 3. 查找与获取 ---
 val1 = my_map["apple"]              # 直接用 key 获取，如果 key 不存在会抛出 KeyError 异常
