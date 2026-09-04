@@ -1,154 +1,267 @@
-"""一个支持撤销（undo）和重做（redo）的固定历史队列。
+"""Undoable queue with a last-k operation history.
 
-队列的当前内容占用 O(n) 空间；n 是队列中的元素数量。回滚功能使用
-固定大小为 k 的环形历史缓冲区，因此额外空间始终为 O(k)。
+The current queue is a doubly linked list. Undo and redo share one fixed-size
+circular array. Each history slot stores the operation, its value, and two
+array indices linking the records in the current branch.
+
+All four public operations take O(1) worst-case time. The queue uses O(n)
+space and the history uses O(k) additional space.
 """
 
 from __future__ import annotations
 
-from collections import deque
-from typing import Deque, Generic, List, Optional, Tuple, TypeVar
+from dataclasses import dataclass
+from typing import Generic, Iterator, List, Optional, TypeVar
 
 
 T = TypeVar("T")
-Operation = Tuple[str, T]
+
+
+@dataclass
+class _QueueNode(Generic[T]):
+    value: T
+    prev: Optional["_QueueNode[T]"] = None
+    next: Optional["_QueueNode[T]"] = None
+
+
+class _DoublyLinkedQueue(Generic[T]):
+    """A deque implemented explicitly as a doubly linked list."""
+
+    def __init__(self) -> None:
+        self.front: Optional[_QueueNode[T]] = None
+        self.back: Optional[_QueueNode[T]] = None
+        self.length = 0
+
+    def add_first(self, value: T) -> None:
+        node = _QueueNode(value=value, next=self.front)
+        if self.front is None:
+            self.back = node
+        else:
+            self.front.prev = node
+        self.front = node
+        self.length += 1
+
+    def add_last(self, value: T) -> None:
+        node = _QueueNode(value=value, prev=self.back)
+        if self.back is None:
+            self.front = node
+        else:
+            self.back.next = node
+        self.back = node
+        self.length += 1
+
+    def remove_first(self) -> T:
+        if self.front is None:
+            raise IndexError("remove from an empty queue")
+        node = self.front
+        self.front = node.next
+        if self.front is None:
+            self.back = None
+        else:
+            self.front.prev = None
+        self.length -= 1
+        return node.value
+
+    def remove_last(self) -> T:
+        if self.back is None:
+            raise IndexError("remove from an empty queue")
+        node = self.back
+        self.back = node.prev
+        if self.back is None:
+            self.front = None
+        else:
+            self.back.next = None
+        self.length -= 1
+        return node.value
+
+    def __iter__(self) -> Iterator[T]:
+        node = self.front
+        while node is not None:
+            yield node.value
+            node = node.next
+
+
+@dataclass
+class _HistoryRecord(Generic[T]):
+    """A history item; prev and next are circular-array indices."""
+
+    kind: str
+    value: T
+    prev: Optional[int]
+    next: Optional[int]
 
 
 class RollbackQueue(Generic[T]):
-    """支持入队、出队、撤销和重做的 FIFO 队列。
+    """FIFO queue with O(1) worst-case enqueue, dequeue, undo, and redo."""
 
-    ``history_limit`` 是可撤销操作的最大数量 k。历史满时，最旧的一次
-    操作会被遗忘，因而不能再撤销；这保证了历史记录不会无限增长。
-    """
+    ENQUEUE = "ENQUEUE"
+    DEQUEUE = "DEQUEUE"
 
-    def __init__(self, history_limit: int) -> None:
-        if history_limit < 0:
-            raise ValueError("history_limit must be non-negative")
+    def __init__(self, k: int) -> None:
+        if k < 0:
+            raise ValueError("k must be non-negative")
 
-        self._items: Deque[T] = deque()
-        self._history_limit = history_limit
+        self._queue: _DoublyLinkedQueue[T] = _DoublyLinkedQueue()
+        self._capacity = k
+        self._history: List[Optional[_HistoryRecord[T]]] = [None] * k
 
-        # 环形数组保存从最旧到最新的历史操作。每条记录只需操作类型和值。
-        self._history: List[Optional[Operation]] = [None] * history_limit
-        self._history_start = 0
-        self._history_size = 0
+        # Indices of the current history branch.
+        self._first: Optional[int] = None
+        self._last: Optional[int] = None
+        self._cursor: Optional[int] = None
 
-        # cursor 左侧的记录已经应用到队列，右侧的记录可以 redo。
-        # 不变量：0 <= _cursor <= _history_size <= history_limit。
-        self._cursor = 0
+        # Only enqueue/dequeue advances next_slot; undo/redo never changes age.
+        self._next_slot = 0
+        self._filled = 0
 
     def enqueue(self, value: T) -> None:
-        """将 ``value`` 放入队尾，时间复杂度为 O(1)。"""
-        self._items.append(value)
-        self._record_operation(("enqueue", value))
+        self._queue.add_last(value)
+        self._record(self.ENQUEUE, value)
 
     def dequeue(self) -> T:
-        """移除并返回队首元素；空队列时抛出 ``IndexError``，时间为 O(1)。"""
-        if self.is_empty():
-            raise IndexError("dequeue from an empty queue")
-
-        value = self._items.popleft()
-        self._record_operation(("dequeue", value))
+        value = self._queue.remove_first()
+        self._record(self.DEQUEUE, value)
         return value
 
     def undo(self) -> bool:
-        """撤销最近一次可撤销操作；没有可撤销操作时返回 ``False``。
-
-        正确性：历史记录按操作发生顺序保存。撤销最近的入队时，它仍是
-        队尾，故 ``pop`` 恰好移除该元素；撤销最近的出队时，使用
-        ``appendleft`` 恢复原来的队首。两种逆操作都会恢复操作前的状态。
-        """
-        if self._cursor == 0:
+        if self._cursor is None:
             return False
 
-        operation = self._operation_at(self._cursor - 1)
-        kind, value = operation
-        if kind == "enqueue":
-            self._items.pop()
-        else:  # kind == "dequeue"
-            self._items.appendleft(value)
-        self._cursor -= 1
+        record = self._record_at(self._cursor)
+        if record.kind == self.ENQUEUE:
+            removed = self._queue.remove_last()
+            assert removed == record.value
+        else:
+            self._queue.add_first(record.value)
+
+        self._cursor = record.prev
         return True
 
     def redo(self) -> bool:
-        """重做最近一次被撤销的操作；没有可重做操作时返回 ``False``。
-
-        正确性：cursor 右侧的第一条历史正是下一次被撤销的操作。按原始
-        方向再次执行该操作，就会回到撤销前的状态。
-        """
-        if self._cursor == self._history_size:
+        if self._first is None:
             return False
 
-        operation = self._operation_at(self._cursor)
-        kind, value = operation
-        if kind == "enqueue":
-            self._items.append(value)
-        else:  # kind == "dequeue"
-            self._items.popleft()
-        self._cursor += 1
+        if self._cursor is None:
+            index = self._first
+        else:
+            index = self._record_at(self._cursor).next
+
+        if index is None:
+            return False
+
+        record = self._record_at(index)
+        if record.kind == self.ENQUEUE:
+            self._queue.add_last(record.value)
+        else:
+            removed = self._queue.remove_first()
+            assert removed == record.value
+
+        self._cursor = index
         return True
 
+    def _record(self, kind: str, value: T) -> None:
+        """Create one operation slot and discard any redo branch in O(1)."""
+        if self._capacity == 0:
+            return
+
+        # Keep the applied prefix and detach the entire redo suffix in O(1).
+        if self._cursor is None:
+            self._first = None
+            self._last = None
+        else:
+            self._record_at(self._cursor).next = None
+            self._last = self._cursor
+
+        index = self._next_slot
+
+        # At full capacity, next_slot is the oldest chronological slot. If it
+        # remains in this branch, it must be first and is detached in O(1).
+        if self._filled == self._capacity:
+            if self._first == index:
+                old_first = self._record_at(index)
+                self._first = old_first.next
+                if self._first is None:
+                    self._last = None
+                    self._cursor = None
+                else:
+                    self._record_at(self._first).prev = None
+        else:
+            self._filled += 1
+
+        self._history[index] = _HistoryRecord(
+            kind=kind, value=value, prev=self._last, next=None
+        )
+
+        if self._last is None:
+            self._first = index
+        else:
+            self._record_at(self._last).next = index
+
+        self._last = index
+        self._cursor = index
+        self._next_slot = (index + 1) % self._capacity
+
+    def _record_at(self, index: int) -> _HistoryRecord[T]:
+        record = self._history[index]
+        assert record is not None
+        return record
+
     def front(self) -> T:
-        """返回队首但不移除它，时间复杂度为 O(1)。"""
-        if self.is_empty():
+        if self._queue.front is None:
             raise IndexError("front from an empty queue")
-        return self._items[0]
+        return self._queue.front.value
 
     def size(self) -> int:
-        """返回当前队列元素数，时间复杂度为 O(1)。"""
-        return len(self._items)
+        return self._queue.length
 
     def is_empty(self) -> bool:
-        """判断队列是否为空，时间复杂度为 O(1)。"""
-        return not self._items
+        return self._queue.length == 0
 
     def to_list(self) -> List[T]:
-        """以队首到队尾的顺序返回快照，时间和空间复杂度为 O(n)。"""
-        return list(self._items)
+        return list(self._queue)
 
-    def _record_operation(self, operation: Operation) -> None:
-        """以 O(1) 时间写入一条新历史记录。
 
-        新操作会使 redo 分支失效。这里仅移动逻辑长度，不逐项清理旧 redo
-        记录，避免 ``clear`` 造成 O(k) 的单次开销。随后覆盖一个环形槽位；
-        历史满时前移起点以忘记最旧记录。因此本方法最坏仍为 O(1)。
-        """
-        if self._history_limit == 0:
-            return
+def _run_checks() -> None:
+    # k=3: eviction, repeated undo/redo, and a new branch after undo.
+    queue = RollbackQueue[str](3)
+    queue.enqueue("A")
+    queue.enqueue("B")
+    assert queue.dequeue() == "A"
+    assert queue.to_list() == ["B"]
 
-        # 逻辑删除 redo 分支：cursor 右侧记录不再有效。
-        self._history_size = self._cursor
-        if self._history_size < self._history_limit:
-            index = (self._history_start + self._history_size) % self._history_limit
-            self._history[index] = operation
-            self._history_size += 1
-            self._cursor = self._history_size
-            return
+    assert queue.undo() and queue.to_list() == ["A", "B"]
+    assert queue.undo() and queue.to_list() == ["A"]
+    assert queue.redo() and queue.to_list() == ["A", "B"]
 
-        # 缓冲区已满：覆盖最旧记录，再将最旧位置右移一格。
-        self._history[self._history_start] = operation
-        self._history_start = (self._history_start + 1) % self._history_limit
-        self._cursor = self._history_limit
+    queue.enqueue("C")  # Discards redo(DEQUEUE A); ENQUEUE(A) also expires.
+    assert queue.to_list() == ["A", "B", "C"]
+    assert queue.undo() and queue.to_list() == ["A", "B"]
+    assert queue.undo() and queue.to_list() == ["A"]
+    assert not queue.undo()
+    assert queue.redo() and queue.to_list() == ["A", "B"]
+    assert queue.redo() and queue.to_list() == ["A", "B", "C"]
+    assert not queue.redo()
 
-    def _operation_at(self, offset: int) -> Operation:
-        """取得逻辑历史中的第 ``offset`` 条记录，时间复杂度为 O(1)。"""
-        index = (self._history_start + offset) % self._history_limit
-        operation = self._history[index]
-        assert operation is not None
-        return operation
+    # Mixed operations after the history window is full.
+    mixed = RollbackQueue[int](2)
+    mixed.enqueue(1)
+    mixed.enqueue(2)
+    assert mixed.dequeue() == 1
+    assert mixed.undo() and mixed.to_list() == [1, 2]
+    assert mixed.undo() and mixed.to_list() == [1]
+    assert not mixed.undo()
+    assert mixed.redo() and mixed.to_list() == [1, 2]
+    assert mixed.redo() and mixed.to_list() == [2]
+
+    # k=0 keeps no history but normal queue operations still work.
+    no_history = RollbackQueue[int](0)
+    no_history.enqueue(7)
+    assert no_history.dequeue() == 7
+    assert not no_history.undo()
+    assert not no_history.redo()
+
+    print("RollbackQueue checks passed")
 
 
 if __name__ == "__main__":
-    queue = RollbackQueue[str](history_limit=3)
-    queue.enqueue("A")
-    queue.enqueue("B")
-    queue.enqueue("C")
-    print("Initial queue:", queue.to_list())
-
-    print("Dequeued:", queue.dequeue())
-    print("After dequeue:", queue.to_list())
-
-    queue.undo()
-    print("After undo:", queue.to_list())
-    queue.redo()
-    print("After redo:", queue.to_list())
+    _run_checks()
