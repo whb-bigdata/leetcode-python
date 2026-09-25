@@ -21,9 +21,9 @@ def pgconnect():
         print('Connecting to the PostgreSQL database...')
         conn = psycopg2.connect(
             host=os.getenv('PGHOST', 'localhost'),
-            database=os.getenv('PGDATABASE', 'postgres'),
+            database=os.getenv('PGDATABASE', 'sydney9120'),
             user=os.getenv('PGUSER', 'postgres'),
-            password=os.getenv('PGPASSWORD'),
+            password=os.getenv('PGPASSWORD','wang1215'),
             port=os.getenv('PGPORT', '5432'),
         )
         print('Connected successfully!')
