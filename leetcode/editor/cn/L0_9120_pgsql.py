@@ -95,7 +95,6 @@ def display_query_results(columns: Sequence[str], rows: Sequence[Sequence[Any]])
     print(separator)
     print(f'共 {len(rows)} 条记录。')
 
-
 def run_select_query(
     query: Any, params: Optional[Sequence[Any]] = None
 ) -> Optional[Tuple[list[str], list[tuple[Any, ...]]]]:
@@ -125,6 +124,7 @@ def run_select_query(
     finally:
         conn.close()
         print('Database connection closed.')
+
 
 
 def get_all_table_names(schema: str = 'public') -> list[str]:
