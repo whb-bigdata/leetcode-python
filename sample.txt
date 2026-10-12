@@ -1,0 +1,3 @@
+Python makes learning fun.
+Count words on each line.
+Words: 9
