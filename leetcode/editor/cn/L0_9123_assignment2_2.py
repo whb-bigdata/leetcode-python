@@ -1,18 +1,33 @@
-"""COMP9123 Assignment 2, Question 2: AVL-tree double-ended priority queue.
+"""COMP9123 Assignment 2 Q2: 用 AVL 树实现双端优先队列（DEPQ）。
 
-The AVL tree stores unique integer keys. In addition to the root, the DEPQ
-keeps direct references to its smallest and largest nodes. Therefore finding
-either extreme is O(1), while AVL insertion and deletion remain O(log n).
+与 assignment2_2.docx 对应的五个操作：
+    insert(k), findMin(), findMax(), removeMin(), removeMax()
+保留原文件的 Python 命名 find_min / find_max / remove_min / remove_max。
+空队列查询、删除返回 None（伪代码中的 NIL）；重复键抛出 ValueError。
 
-设计与中文回答一致：父指针支持迭代回溯，min/max 指针支持直接查询。
-全局最小节点没有左孩子；AVL 平衡意味着其右孩子（若有）只能是叶子。
-因此下一最小节点是其右孩子，或在无右孩子时是其父节点。最大值对称。
-删除极值时直接摘除节点并接上唯一孩子，不复制键值，保留其他节点身份。
+T 到底是什么？
+    T = AVLDoubleEndedPriorityQueue() 创建一个管理整棵树的对象。
+    T.root 指向根节点；T.min_node / T.max_node 指向极值节点；T.n 是节点数。
+    _AVLNode 是一个实际节点，保存 key / left / right / parent / height。
+    T 不是根节点，也不复制一份树：这些属性只是对已有节点的引用。
+    T.insert(k) 中的 self 就是 T；辅助函数 avl_insert(self, k) 接收同一个对象。
 
-The five DEPQ operations use O(1) auxiliary space: rebalancing is iterative.
-The tree uses O(n) total space. The optional inorder() diagnostic uses O(n)
-output space and O(log n) recursion space; it is not a DEPQ operation.
-Empty queries/removals raise IndexError; duplicate insertion raises ValueError.
+伪代码与 Python 的对应：
+    AVL-INSERT(T, k)       -> avl_insert(T, k)
+    AVL-DELETE(T, v)       -> avl_delete(T, v)（仅删除极值节点）
+    AVL-REBALANCE-AT(T, p) -> avl_rebalance_at(T, p)
+    ROTATE-LEFT(T, x)      -> rotate_left(T, x)
+    ROTATE-RIGHT(T, x)     -> rotate_right(T, x)
+Python 用缩进结束 if / while / 函数块，不写 end if / end while。
+
+正确性要点：搜索和旋转保持 BST 顺序，向上回溯恢复 AVL 高度和平衡。
+最小节点没有左孩子；由 AVL 平衡可知，它的右孩子若存在只能是叶子，
+所以其后继是右孩子，或（无右孩子时）父节点。最大节点的前驱对称。
+删除直接摘除节点，不复制键；旋转仅改变链接，因此极值引用保持有效。
+
+复杂度（按题目的基本操作为 O(1) 的模型）：查询极值 O(1)，插入和删除
+最坏 O(log n)，空树/单节点操作 O(1)。五个操作迭代回溯，辅助空间 O(1)，
+全部节点占 O(n)。inorder() 仅用于演示，输出 O(n)，递归栈 O(log n)。
 """
 
 from __future__ import annotations
@@ -23,196 +38,279 @@ from typing import List, Optional
 
 @dataclass(eq=False)
 class _AVLNode:
+    """一个节点；eq=False 使节点按身份区分，不递归比较父子链接。"""
+
     key: int
-    left: Optional["_AVLNode"] = None
-    right: Optional["_AVLNode"] = None
+    left: Optional[_AVLNode] = None
+    right: Optional[_AVLNode] = None
     height: int = 1
-    parent: Optional["_AVLNode"] = None
+    parent: Optional[_AVLNode] = None
 
 
 class AVLDoubleEndedPriorityQueue:
-    """A double-ended priority queue backed by an AVL search tree."""
+    """整棵 AVL 树及其极值缓存；外部可把这个对象命名为 T。"""
 
     def __init__(self) -> None:
-        self._root: Optional[_AVLNode] = None
-        self._min_node: Optional[_AVLNode] = None
-        self._max_node: Optional[_AVLNode] = None
-        self._size = 0
+        # T = AVLDoubleEndedPriorityQueue() 时自动执行；此时尚无节点。
+        self.root: Optional[_AVLNode] = None
+        self.min_node: Optional[_AVLNode] = None
+        self.max_node: Optional[_AVLNode] = None
+        self.n = 0
 
     def insert(self, key: int) -> None:
-        """Insert a unique key in O(log n) time.
-
-        Search once and retain the inserted node reference. Rotations change
-        links, not keys or node identities, so cached extrema remain valid.
-        """
-        parent = None
-        node = self._root
-        while node is not None:
-            parent = node
-            if key == node.key:
-                raise ValueError("duplicate keys are not supported")
-            node = node.left if key < node.key else node.right
-
-        inserted = _AVLNode(key, parent=parent)
-        if parent is None:
-            self._root = inserted
-        elif key < parent.key:
-            parent.left = inserted
+        """insert(k)：先插入并恢复平衡，再更新极值缓存和节点数。"""
+        v = avl_insert(self, key)  # self 就是调用 T.insert(key) 的 T。
+        if self.n == 0:
+            self.min_node = v
+            self.max_node = v
         else:
-            parent.right = inserted
+            assert self.min_node is not None and self.max_node is not None
+            if key < self.min_node.key:
+                self.min_node = v
+            if key > self.max_node.key:
+                self.max_node = v
+        self.n += 1
 
-        self._size += 1
-        if self._min_node is None or key < self._min_node.key:
-            self._min_node = inserted
-        if self._max_node is None or key > self._max_node.key:
-            self._max_node = inserted
-        self._rebalance_upwards(parent)
+    def find_min(self) -> Optional[int]:
+        """findMin()：直接访问缓存，O(1)。"""
+        if self.min_node is None:
+            return None
+        return self.min_node.key
 
-    def find_min(self) -> int:
-        """Return the smallest key in O(1) time without removing it."""
-        if self._min_node is None:
-            raise IndexError("find_min from an empty DEPQ")
-        return self._min_node.key
+    def find_max(self) -> Optional[int]:
+        """findMax()：直接访问缓存，O(1)。"""
+        if self.max_node is None:
+            return None
+        return self.max_node.key
 
-    def find_max(self) -> int:
-        """Return the largest key in O(1) time without removing it."""
-        if self._max_node is None:
-            raise IndexError("find_max from an empty DEPQ")
-        return self._max_node.key
+    def remove_min(self) -> Optional[int]:
+        """removeMin()：提前保存后继引用，再摘除最小节点并恢复平衡。"""
+        if self.n == 0:
+            return None
+        v = self.min_node
+        assert v is not None
+        key = v.key
+        if self.n == 1:
+            self.root = self.min_node = self.max_node = None
+            self.n = 0
+            return key
 
-    def remove_min(self) -> int:
-        """Remove and return the smallest key in O(log n) time."""
-        minimum = self.find_min()  # Raises before changing an empty queue.
-        node = self._min_node
-        assert node is not None
-        # AVL-specific O(1) successor; this shortcut is not valid for any BST.
-        self._min_node = node.right if node.right is not None else node.parent
-        self._remove_extreme(node, node.right)
-        return minimum
+        # 这个 O(1) 后继规则依赖 AVL 平衡，不适用于任意 BST。
+        if v.right is not None:
+            new_min = v.right
+        else:
+            new_min = v.parent
+        avl_delete(self, v)
+        self.min_node = new_min
+        self.n -= 1
+        return key
 
-    def remove_max(self) -> int:
-        """Remove and return the largest key in O(log n) time."""
-        maximum = self.find_max()
-        node = self._max_node
-        assert node is not None
-        self._max_node = node.left if node.left is not None else node.parent
-        self._remove_extreme(node, node.left)
-        return maximum
+    def remove_max(self) -> Optional[int]:
+        """removeMax()：与删除最小值对称。"""
+        if self.n == 0:
+            return None
+        v = self.max_node
+        assert v is not None
+        key = v.key
+        if self.n == 1:
+            self.root = self.min_node = self.max_node = None
+            self.n = 0
+            return key
 
-    def _remove_extreme(
-        self, node: _AVLNode, child: Optional[_AVLNode]
-    ) -> None:
-        """Splice out an extreme (at most one child), then repair ancestors."""
-        parent = node.parent
-        self._replace_node(node, child)
-        self._size -= 1
-        if self._size == 0:
-            self._min_node = self._max_node = None
-        # Detach the removed node; surviving nodes keep their identities/keys.
-        node.left = node.right = node.parent = None
-        self._rebalance_upwards(parent)
+        if v.left is not None:
+            new_max = v.left
+        else:
+            new_max = v.parent
+        avl_delete(self, v)
+        self.max_node = new_max
+        self.n -= 1
+        return key
+
+    # 同一套实现同时支持报告的名称与原文件的 snake_case 名称。
+    findMin = find_min
+    findMax = find_max
+    removeMin = remove_min
+    removeMax = remove_max
 
     def size(self) -> int:
-        """Return the number of stored keys in O(1) time."""
-        return self._size
+        return self.n
 
     def is_empty(self) -> bool:
-        """Return whether the DEPQ is empty in O(1) time."""
-        return self._size == 0
+        return self.n == 0
 
     def inorder(self) -> List[int]:
-        """Return the keys in ascending order, for demonstration and testing."""
+        """辅助演示：中序遍历得到有序键列表，不属于题目五个操作。"""
         values: List[int] = []
 
-        def visit(node: Optional[_AVLNode]) -> None:
-            if node is not None:
-                visit(node.left)
-                values.append(node.key)
-                visit(node.right)
+        def visit(u: Optional[_AVLNode]) -> None:
+            if u is not None:
+                visit(u.left)
+                values.append(u.key)
+                visit(u.right)
 
-        visit(self._root)
+        visit(self.root)
         return values
 
-    def _replace_node(
-        self, node: _AVLNode, replacement: Optional[_AVLNode]
-    ) -> None:
-        """Reconnect a subtree to its parent (or update the root)."""
-        parent = node.parent
-        if parent is None:
-            self._root = replacement
-        elif parent.left is node:
-            parent.left = replacement
+
+def height(u: Optional[_AVLNode]) -> int:
+    """height(NIL)=0；直接读取缓存高度，不遍历子树。"""
+    return 0 if u is None else u.height
+
+
+def avl_insert(T: AVLDoubleEndedPriorityQueue, k: int) -> _AVLNode:
+    """内部步骤：插入并重平衡，返回新节点 v；不更新 n 或极值缓存。"""
+    p = None
+    u = T.root
+    while u is not None:
+        p = u
+        if k == u.key:
+            # 题目假设键互异；保留原实现的重复键检查，且不修改树。
+            raise ValueError("duplicate keys are not supported")
+        if k < u.key:
+            u = u.left
         else:
-            assert parent.right is node
-            parent.right = replacement
-        if replacement is not None:
-            replacement.parent = parent
+            u = u.right
 
-    def _rebalance_upwards(self, node: Optional[_AVLNode]) -> None:
-        """Repair all ancestors using parent links, with no recursion stack."""
-        while node is not None:
-            subtree_root = self._rebalance(node)
-            node = subtree_root.parent
+    v = _AVLNode(key=k, parent=p)  # height=1，left/right=None。
+    if p is None:
+        T.root = v
+    elif k < p.key:
+        p.left = v
+    else:
+        p.right = v
 
-    @staticmethod
-    def _height(node: Optional[_AVLNode]) -> int:
-        return node.height if node is not None else 0
+    while p is not None:
+        # 更新高度已包含在 avl_rebalance_at 的第一步中。
+        r = avl_rebalance_at(T, p)
+        p = r.parent  # 从修复后的局部根继续向上，不能沿旧 p 再走一遍。
+    return v  # 返回插入的节点，而不是旋转后的根。
 
-    def _rebalance(self, node: _AVLNode) -> _AVLNode:
-        node.height = 1 + max(self._height(node.left), self._height(node.right))
-        balance = self._height(node.left) - self._height(node.right)
 
-        if balance > 1:
-            assert node.left is not None
-            if self._height(node.left.left) < self._height(node.left.right):
-                node.left = self._rotate_left(node.left)
-            return self._rotate_right(node)
-        if balance < -1:
-            assert node.right is not None
-            if self._height(node.right.right) < self._height(node.right.left):
-                node.right = self._rotate_right(node.right)
-            return self._rotate_left(node)
-        return node
+def avl_delete(T: AVLDoubleEndedPriorityQueue, v: _AVLNode) -> None:
+    """内部步骤：只删除 T 的极值节点；外层方法负责 n 和极值缓存。"""
+    if v is not T.min_node and v is not T.max_node:
+        raise ValueError("avl_delete only supports extreme nodes of T")
+    p = v.parent
+    if v.left is not None:
+        child = v.left
+    else:
+        child = v.right
 
-    def _rotate_left(self, node: _AVLNode) -> _AVLNode:
-        pivot = node.right
-        assert pivot is not None
-        self._replace_node(node, pivot)
-        node.right = pivot.left
-        if node.right is not None:
-            node.right.parent = node
-        pivot.left = node
-        node.parent = pivot
-        node.height = 1 + max(self._height(node.left), self._height(node.right))
-        pivot.height = 1 + max(self._height(pivot.left), self._height(pivot.right))
-        return pivot
+    if p is None:
+        T.root = child
+    elif p.left is v:
+        p.left = child
+    else:
+        p.right = child
+    if child is not None:
+        child.parent = p
 
-    def _rotate_right(self, node: _AVLNode) -> _AVLNode:
-        pivot = node.left
-        assert pivot is not None
-        self._replace_node(node, pivot)
-        node.left = pivot.right
-        if node.left is not None:
-            node.left.parent = node
-        pivot.right = node
-        node.parent = pivot
-        node.height = 1 + max(self._height(node.left), self._height(node.right))
-        pivot.height = 1 + max(self._height(pivot.left), self._height(pivot.right))
-        return pivot
+    v.left = v.right = v.parent = None
+    while p is not None:
+        r = avl_rebalance_at(T, p)
+        p = r.parent  # 删除后可能有多层失衡，要一直检查到根。
 
+
+def avl_rebalance_at(T: AVLDoubleEndedPriorityQueue, p: _AVLNode) -> _AVLNode:
+    """修复 p 这一层，返回修复后的局部根；每次至多两次旋转，O(1)。"""
+    p.height = 1 + max(height(p.left), height(p.right))
+    balance = height(p.left) - height(p.right)
+    if balance > 1:
+        assert p.left is not None
+        if height(p.left.left) < height(p.left.right):
+            rotate_left(T, p.left)  # LR：第一次针对左孩子。
+        return rotate_right(T, p)  # LL 单旋；LR 的第二次针对 p。
+    if balance < -1:
+        assert p.right is not None
+        if height(p.right.right) < height(p.right.left):
+            rotate_right(T, p.right)  # RL：第一次针对右孩子。
+        return rotate_left(T, p)  # RR 单旋；RL 的第二次针对 p。
+    # 删除时孩子的 balance 可能为 0；上述严格 < 判断使其使用单旋。
+    return p
+
+
+def rotate_left(T: AVLDoubleEndedPriorityQueue, x: _AVLNode) -> _AVLNode:
+    """ROTATE-LEFT(T,x)：右孩子 y 上来，x 下去成为 y 的左孩子。"""
+    y = x.right
+    assert y is not None
+    parent = x.parent
+
+    # y 接替 x 原来的位置；若 x 原来是整棵树的根，必须改 T.root。
+    y.parent = parent
+    if parent is None:
+        T.root = y
+    elif parent.left is x:
+        parent.left = y
+    else:
+        parent.right = y
+
+    x.right = y.left  # y 原来的左子树交给 x。
+    if x.right is not None:
+        x.right.parent = x
+    y.left = x
+    x.parent = y
+
+    # 先更新下面的 x，再更新上面的 y（y 的新高度依赖 x）。
+    x.height = 1 + max(height(x.left), height(x.right))
+    y.height = 1 + max(height(y.left), height(y.right))
+    return y
+
+
+def rotate_right(T: AVLDoubleEndedPriorityQueue, x: _AVLNode) -> _AVLNode:
+    """ROTATE-RIGHT(T,x)：左孩子 y 上来，x 下去成为 y 的右孩子。"""
+    y = x.left
+    assert y is not None
+    parent = x.parent
+
+    y.parent = parent
+    if parent is None:
+        T.root = y
+    elif parent.left is x:
+        parent.left = y
+    else:
+        parent.right = y
+
+    x.left = y.right
+    if x.left is not None:
+        x.left.parent = x
+    y.right = x
+    x.parent = y
+
+    x.height = 1 + max(height(x.left), height(x.right))
+    y.height = 1 + max(height(y.left), height(y.right))
+    return y
+
+
+def _demo() -> None:
+    """直接运行本文件，观察 T、根节点以及五个操作的实际结果。"""
+    T = AVLDoubleEndedPriorityQueue()
+    original_T = T  # 两个名字指向同一个对象，不是复制树。
+    print("创建 T 后：root =", T.root, "节点数 =", T.n)
+    for k in (10, 20, 30):
+        T.insert(k)
+        assert T.root is not None
+        print(f"插入 {k}：根 = {T.root.key}，T 还是原对象 = {T is original_T}")
+    assert T.root is not None and T.root.key == 20
+    print("T 是管理对象；T.root 是节点；两者不同：", T is not T.root)
+    print("findMin() =", T.findMin(), "findMax() =", T.findMax())
+    print("removeMin() =", T.removeMin(), "removeMax() =", T.removeMax())
+    print("剩余键值：", T.inorder(), "节点数：", T.size())
+    assert T.removeMin() == 20 and T.is_empty()
+    print("清空后：root =", T.root, "findMin() =", T.findMin(),
+          "removeMax() =", T.removeMax())
+
+    for case, keys in (("LL 右旋", (30, 20, 10)),
+                       ("RR 左旋", (10, 20, 30)),
+                       ("LR 先左后右", (30, 10, 20)),
+                       ("RL 先右后左", (10, 30, 20))):
+        tree = AVLDoubleEndedPriorityQueue()
+        for k in keys:
+            tree.insert(k)
+        assert tree.root is not None and tree.root.key == 20
+        assert tree.inorder() == [10, 20, 30]
+        print(f"{case}：插入 {keys} -> 根 {tree.root.key}，中序 {tree.inorder()}")
+    print("AVL DEPQ examples passed.")
 
 
 if __name__ == "__main__":
-    depq = AVLDoubleEndedPriorityQueue()
-    for key in (30, 10, 40, 5, 20, 35, 50, 15, 25):
-        depq.insert(key)
-
-    assert depq.inorder() == [5, 10, 15, 20, 25, 30, 35, 40, 50]
-    assert depq.find_min() == 5
-    assert depq.find_max() == 50
-    assert depq.remove_min() == 5
-    assert depq.remove_max() == 50
-    assert depq.find_min() == 10
-    assert depq.find_max() == 40
-    print("DEPQ contents:", depq.inorder())
-    print("AVL DEPQ checks passed.")
+    _demo()
