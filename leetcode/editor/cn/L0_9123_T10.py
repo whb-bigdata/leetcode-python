@@ -10,7 +10,7 @@
     7 a-c  最小加权完成时间：算法、相邻交换证明和复杂度。
     8 a-c  买花最小总价：算法、分配方案、证明和复杂度。
 
-运行 / Run: python3 L0_9123_w10.py
+运行 / Run: python3 L0_9123_T10.py
 导入时不会运行示例 / Importing this module does not run the examples.
 依赖 / Dependencies: 仅 Python 标准库 collections、dataclasses、fractions、
 heapq、itertools；无需安装第三方包。需要 Python 3.10+。

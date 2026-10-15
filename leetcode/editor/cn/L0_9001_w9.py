@@ -19,7 +19,7 @@ def read_lines(file_path):
         text_file = open(file_path, "r", encoding="utf-8")
     except OSError:
         # 路径不存在、无权限或指向目录等情况，均尝试默认文件。
-        text_file = open("sample.txt", "r", encoding="utf-8")
+        text_file = open("../../../sample.txt", "r", encoding="utf-8")
 
     # with 会在读取结束后自动关闭文件，包括读取发生异常的情况。
     with text_file:
