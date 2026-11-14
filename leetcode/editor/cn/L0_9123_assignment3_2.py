@@ -1,22 +1,3 @@
-# This file contains the scaffold code for Q2. Do not modify this file.
-
-class EncryptedPacket:
-    def __init__(self, source_id: str, size: int):
-        self._source_id = source_id
-        self.size = size
-
-    __hash__ = None  # type: ignore
-
-    def __lt__(self, other):
-        raise TypeError("EncryptedPackets cannot be sorted.")
-# a = EncryptedPacket('A', 0)
-# print(a._source_id)
-
-def is_same_source(packet_A: EncryptedPacket, packet_B: EncryptedPacket) -> bool:
-    """Returns True if both packets come from the same source."""
-    return packet_A._source_id == packet_B._source_id
-
-
 """
 COMP9123 - 2026S2 - Assignment 3
 Q2. Bandwidth Hog
@@ -26,6 +7,7 @@ Given a traffic log of encrypted packets, identify the source that takes up more
 
 """
 
+from scaffold import EncryptedPacket, is_same_source
 
 
 def find_bandwidth_hog(traffic_log: list[EncryptedPacket]) -> EncryptedPacket | None:
@@ -49,39 +31,32 @@ def find_bandwidth_hog(traffic_log: list[EncryptedPacket]) -> EncryptedPacket | 
 
     if len(traffic_log) == 0:
         return None
-
     if len(traffic_log) == 1:
-        return traffic_log[0]
+        return traffic_log[0] if traffic_log[0].size > 0 else None
 
     mid = len(traffic_log) // 2
-
     left_result = find_bandwidth_hog(traffic_log[:mid])
     right_result = find_bandwidth_hog(traffic_log[mid:])
 
-    if left_result is not None and right_result is not None:
-        if is_same_source(left_result, right_result):
-            return left_result
-    weight_left = 0
-    weight_right = 0
-    total_weight = 0
+    if left_result is not None and right_result is not None and is_same_source(left_result, right_result):
+        return left_result
+
+    sum_weight = 0
+    left_weight = 0
+    right_weight = 0
 
     for packet in traffic_log:
-        total_weight += packet.size
-        if left_result is not None and is_same_source(packet, left_result):
-            weight_left += packet.size
-        if right_result is not None and is_same_source(packet, right_result):
-            weight_right += packet.size
+        sum_weight += packet.size
+        if left_result is not None and is_same_source(left_result, packet):
+            left_weight += packet.size
+        if right_result is not None and is_same_source(right_result, packet): 
+                right_weight += packet.size
 
-    if left_result is not None and weight_left * 2 > total_weight:
+    if left_result is not None and left_weight * 2 > sum_weight:
         return left_result
-    if right_result is not None and weight_right * 2 > total_weight:
+    if right_result is not None and right_weight * 2 > sum_weight:
         return right_result
-
     return None
-
-
-
-
 
 
 # ------------------
